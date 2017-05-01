@@ -96,9 +96,11 @@ library(cluster)
 source("clusGap.R")
 
 runGap <- function(df, 
-                   df_name, 
+                   df_name="None", 
+                   B = 50,
                    FUNcluster = kmeans, 
                    pca = TRUE, 
+                   method = "maxAcc",
                    do_parallel = TRUE){
   gap = clusGap(df %>% select(-class), 
                   FUN = FUNcluster, 
@@ -108,20 +110,22 @@ runGap <- function(df,
                   #spaceH0 = c("scaledPCA"),
                   pca = pca,
                   do_parallel = do_parallel,
-                  B = 50,
+                  B = B,
                   verbose = TRUE)
   tibs2001SEmax = maxSE(gap$Tab[, 3], gap$Tab[, 4], method="Tibs2001SEmax")
   firstSEmax =  maxSE(gap$Tab[, 3], gap$Tab[, 4], method="firstSEmax")
   accMax = maxSE(gap$Tab[, 3], gap$Tab[, 4], method="accMax")
-  plot(gap, main = paste0(df_name, ": ", nlevels(df$class), " classes;", 
-                          " tibs2001SEmax: ", tibs2001SEmax,
-                          " firstSEmax: ", firstSEmax,
-                          " accMax: ", accMax))
-  print(paste("Tibs2001SEmax:", tibs2001SEmax))
+  accMaxSE = maxSE(gap$Tab[, 3], gap$Tab[, 4], method="accMaxSE")
+  plot(gap, main = paste0(df_name, ": ", nlevels(df$class), ";", 
+                          " tibs2001SE: ", tibs2001SEmax,
+                          " firstSE: ", firstSEmax,
+                          " accMax: ", accMax,
+                          " accMaxSE: ", accMaxSE))
+  print(paste("tibs2001SEmax:", tibs2001SEmax))
   print(paste("firstSEmax:", firstSEmax))
   print(paste("accMax:", accMax))
   print(levels(df$class))
-  return(gap)
+  return(list("gap"=gap, "kCluster"=accMaxSE))
 }
 ```
 ```{r}
@@ -135,9 +139,9 @@ names(datasets)
 # iris: 
 # seeds: all correct
 # vertebral_column: bootstrap fix!!
-# wine: need maxAcc, no good
+# wine: need maxAcc, maxAcc can't fix
 # balance_scale: always 1, SE too big
-# blood: always 1, no good
+# blood: always 1, maxAcc can't fix
 # density: always good
 # liver-disorders: bootstrap fix!! with maxAcc!
 # mouse: missed, 4 -> predicted 3. Need recursive?
@@ -145,13 +149,40 @@ names(datasets)
 # skin: 2 classes, no hope
 # lettr: no hope
 
-df_name = 'ovl3Gauss'
+df_name = 'mouse'
 df = datasets[[df_name]]
-nums <- sapply(df, is.numeric)
+#nums <- sapply(df, is.numeric)
 #pam(df %>% select(-class), 3)
-runGap(df, df_name, FUNcluster = pam, pca = TRUE, do_parallel = TRUE)
+runGap(df, df_name, FUNcluster = pam, pca = TRUE, method="accMaxSE", do_parallel = TRUE)
 
 #Bootstrap
-df_sample = sample_n(df, size = min(nrow(df), 500), replace = TRUE)
-runGap(df_sample, df_name, FUNcluster = pam, pca = TRUE, do_parallel = TRUE)
+#df_sample = sample_n(df, size = min(nrow(df), 500), replace = TRUE)
+#runGap(df_sample, df_name, FUNcluster = pam, pca = TRUE, method="accMaxSE", do_parallel = TRUE)
+```
+
+Recursive clusGap
+```{r}
+df_name = 'hier4Gauss'
+df = datasets[[df_name]]
+result = runGap(df, df_name, FUNcluster = pam, 
+                  pca = TRUE,method="maxAccSE",do_parallel = TRUE)
+gap = result$gap
+kCluster = result$kCluster
+```
+```{r}
+f = gap$Tab[, 3]
+fSE = gap$Tab[, 4]
+diff(diff(f)) + head(fSE, -2) + tail(fSE, -2) +2* head(tail(fSE, -1), -1)
+```
+```{r}
+df_name = 'hier4Gauss'
+df = datasets[[df_name]]
+kCluster = 2
+X = df%>%select(-class)
+#X= as.matrix(X)
+clus = pam(X, kCluster)$cluster
+result = vapply(split(df, clus),
+			      function(X) { #xs <- X[I,, drop=FALSE]
+				                   runGap(X, df_name, FUNcluster = pam)$kCluster}, 0.)
+
 ```

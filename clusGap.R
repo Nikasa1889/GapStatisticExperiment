@@ -119,7 +119,7 @@ clusGap <- function (x,
 
 maxSE <- function(f, SE.f,
 		  method = c("firstSEmax", "Tibs2001SEmax",
-		  "globalSEmax", "firstmax", "globalmax", "accMax"),
+		  "globalSEmax", "firstmax", "globalmax", "accMax", "accMaxSE"),
 		  SE.factor = 1)
 {
     method <- match.arg(method)
@@ -156,7 +156,15 @@ maxSE <- function(f, SE.f,
 	   },
 	   "accMax" = {
 	     1+which.min(diff(diff(f)))
-	   }) #TODO: Max Acc here
+	   },
+	   "accMaxSE" = {
+	     accSE = diff(diff(f)) + 0.5*head(fSE, -2) + 0.5*tail(fSE, -2) + head(tail(fSE, -1), -1)
+	     if (min(accSE)>=0){
+	       1
+	     } else {
+	       1+which.min(accSE)
+	     }
+	   })
 }
 
 print.clusGap <- function(x, method="firstSEmax", SE.factor = 1, ...)
