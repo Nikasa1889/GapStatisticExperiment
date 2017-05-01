@@ -5,6 +5,9 @@ output: Gap.nb.html
 Load all csv files in Data
 
 ```{r, message=TRUE}
+library(readr)
+library(tibble)
+library(dplyr)
 DataDir = "~/GapExperiment/Data/"
 load_csv <- function(fileName){
   filePath = paste0(DataDir, fileName)
@@ -92,12 +95,12 @@ datasets[["hier4Gauss"]] = df
 Function to run Gap
 ```{r}
 library(dplyr)
-library(cluster)
+#library(cluster)
 source("clusGap.R")
 
 runGap <- function(df, 
                    df_name="None", 
-                   B = 50,
+                   B = 100,
                    FUNcluster = kmeans, 
                    pca = TRUE, 
                    method = "maxAcc",
@@ -135,7 +138,7 @@ names(datasets)
 ```{r}
 #GOOD DATA:
 # cancer: maxAcc fix
-# glass: maxAcc + recursive?
+# glass: maxAcc + recursive (almost; 5 instead of 6)
 # iris: maxAccSE + recursive fix. Very good
 # seeds: all correct
 # vertebral_column: bootstrap fix!!
@@ -148,6 +151,7 @@ names(datasets)
 # pen: 10 classes, too big, linear increase
 # skin: 2 classes, no hope
 # lettr: no hope
+# breast: maxAcc very good
 
 df_name = 'mouse'
 df = datasets[[df_name]]
@@ -196,8 +200,8 @@ runGapRecursive <- function(df, ...){
 ```
 
 ```{r}
-df_name = 'cancer'
+df_name = 'thyroid'
 df = datasets[[df_name]]
-
-runGapRecursive(df, df_name=df_name, FUNcluster = pam, do_parallel=FALSE)
+df = sample_n(df, size = min(nrow(df), 500), replace = TRUE)
+runGapRecursive(df, df_name=df_name, FUNcluster = pam, do_parallel=FALSE, B = 50)
 ```

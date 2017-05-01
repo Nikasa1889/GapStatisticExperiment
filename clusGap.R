@@ -158,7 +158,7 @@ maxSE <- function(f, SE.f,
 	     1+which.min(diff(diff(f)))
 	   },
 	   "accMaxSE" = {
-	     accSE = diff(diff(f)) + head(fSE, -2) + tail(fSE, -2) + 2*head(tail(fSE, -1), -1)
+	     accSE = diff(diff(f)) + 0.5*head(fSE, -2) + 0.5*tail(fSE, -2) + 1*head(tail(fSE, -1), -1)
 	     if (min(accSE)>=0){
 	       1
 	     } else {
