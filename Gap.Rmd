@@ -136,7 +136,7 @@ names(datasets)
 #GOOD DATA:
 # cancer: maxAcc fix
 # glass: maxAcc + recursive?
-# iris: 
+# iris: maxAccSE + recursive fix. Very good
 # seeds: all correct
 # vertebral_column: bootstrap fix!!
 # wine: need maxAcc, maxAcc can't fix
@@ -160,20 +160,7 @@ runGap(df, df_name, FUNcluster = pam, pca = TRUE, method="accMaxSE", do_parallel
 #runGap(df_sample, df_name, FUNcluster = pam, pca = TRUE, method="accMaxSE", do_parallel = TRUE)
 ```
 
-Recursive clusGap
-```{r}
-df_name = 'hier4Gauss'
-df = datasets[[df_name]]
-result = runGap(df, df_name, FUNcluster = pam, 
-                  pca = TRUE,method="maxAccSE",do_parallel = TRUE)
-gap = result$gap
-kCluster = result$kCluster
-```
-```{r}
-f = gap$Tab[, 3]
-fSE = gap$Tab[, 4]
-diff(diff(f)) + head(fSE, -2) + tail(fSE, -2) +2* head(tail(fSE, -1), -1)
-```
+Test
 ```{r}
 df_name = 'hier4Gauss'
 df = datasets[[df_name]]
@@ -185,4 +172,32 @@ result = vapply(split(df, clus),
 			      function(X) { #xs <- X[I,, drop=FALSE]
 				                   runGap(X, df_name, FUNcluster = pam)$kCluster}, 0.)
 
+```
+
+Recursive clusGap
+```{r}
+runGapRecursive <- function(df, ...){
+  print("--------")
+  kCluster = runGap(df, ...)$kCluster
+  if (kCluster > 1){
+    X = df%>%select(-class)
+    clus = pam(X, kCluster)$cluster
+    result = vapply(split(df, clus),
+	      function(X) { #xs <- X[I,, drop=FALSE]
+		                   runGapRecursive(X, ...)}, 0.)
+    print(result)
+    return(sum(result))
+
+  } else {
+    return (kCluster)
+    
+  }
+}
+```
+
+```{r}
+df_name = 'cancer'
+df = datasets[[df_name]]
+
+runGapRecursive(df, df_name=df_name, FUNcluster = pam, do_parallel=FALSE)
 ```
