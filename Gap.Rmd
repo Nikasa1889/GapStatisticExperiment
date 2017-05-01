@@ -3,7 +3,8 @@ title: "Gap notebook"
 output: Gap.nb.html
 ---
 Load all csv files in Data
-```{r}
+
+```{r, message=TRUE}
 DataDir = "~/GapExperiment/Data/"
 load_csv <- function(fileName){
   filePath = paste0(DataDir, fileName)
@@ -18,82 +19,139 @@ datasets = lapply(csvFiles, load_csv)
 datasets = setNames(datasets, datasetNames)
 names(datasets)
 ```
-
+Create Synthesized datasets
 ```{r}
-library(readr)
-balanceDf = read_csv("~/GapExperiment/Data/balance_scale.csv", 
-                  col_types = cols(Class = col_character(), `Left-Distance` = col_double(), 
-                  `Left-Weight` = col_double(), `Right-Distance` = col_double(), 
-                  `Right-Weight` = col_double()))
-names(balanceDf)[ncol(balanceDf)]  = "class"
-balanceDf$class = factor(balanceDf$class)
+sampleGaussCluster <- function (muList, sigmaList, nEach){
+  nCluster = length(muList)
+  stopifnot(nCluster == length(sigmaList))
+  df = NULL
+  for (i in seq(nCluster)){
+    sampMat = MASS::mvrnorm(n = nEach[[i]], muList[[i]], sigmaList[[i]])
+    sampDf = as_data_frame(sampMat)
+    sampDf$class = i
+    if (is.null(df)){
+      df = sampDf
+    } else {
+      df = rbind(df, sampDf)
+    }
+  }
+  df$class = as.factor(df$class)
+  return(df)
+}
 
-banknoteDf = read_csv("~/GapExperiment/Data/banknote_authentication.csv", 
-                  col_types = cols(class = col_character()))
-names(banknoteDf)[ncol(banknoteDf)]  = "class"
-banknoteDf$class = factor(banknoteDf$class)
+#2 overlapping Gaussian
+ovl2Gauss_Mu = list(c(0, 0), c(2.5, 2.5))
+ovl2Gauss_Sigma = list(matrix(c(1,0.7,0.7,1),2,2), 
+                      matrix(c(1, 0, 0, 1),2,2))
+nEach = list(200, 200)
+df = sampleGaussCluster(ovl2Gauss_Mu, ovl2Gauss_Sigma, nEach = nEach)
+plot(df$V1, df$V2)
+datasets[["ovl2Gauss"]] = df
 
-bloodDf = read_csv("~/GapExperiment/Data/blood.csv", 
-                col_types = cols(
-                  `Frequency (times)` = col_double(), 
-                  `Monetary (c.c. blood)` = col_double(), 
-                  `Recency (months)` = col_double(), 
-                  `Time (months)` = col_double(), 
-                  `whether he/she donated blood in March 2007`=col_character()))
-names(bloodDf)[ncol(bloodDf)]  = "class"
-bloodDf$class = factor(bloodDf$class)
+#2 overlapping Gaussian
+ovl2Gauss_Mu = list(c(0, 0), c(2.5, 2.5))
+ovl2Gauss_Sigma = list(matrix(c(1,0.7,0.7,1),2,2), 
+                      matrix(c(1, 0, 0, 1),2,2))
+nEach = list(200, 200)
+df = sampleGaussCluster(ovl2Gauss_Mu, ovl2Gauss_Sigma, nEach = nEach)
+plot(df$V1, df$V2)
+datasets[["ovl2Gauss"]] = df
 
-cancerDf = read_csv("~/GapExperiment/Data/cancer.csv")
-names(cancerDf)[ncol(cancerDf)]  = "class"
-cancerDf$class = factor(cancerDf$class)
+#2 strong overlapping Gaussian
+strOvl2Gauss_Mu = list(c(0, 0), c(2, 2))
+strOvl2Gauss_Sigma = list(matrix(c(1,0.7,0.7,1),2,2), 
+                      matrix(c(0.8, 0, 0, 0.8),2,2))
+nEach = list(200, 200)
+df = sampleGaussCluster(strOvl2Gauss_Mu, strOvl2Gauss_Sigma, nEach = nEach)
+plot(df$V1, df$V2)
+datasets[["strOvl2Gauss"]] = df
 
-densityDf = read_csv("~/GapExperiment/Data/density.csv")
-names(densityDf)[ncol(densityDf)]  = "class"
-densityDf$class = factor(densityDf$class)
+#3 overlapping Gaussian
+ovl3Gauss_Mu = list(c(0, 0), c(2.5, 2.5), c(0, 2))
+ovl3Gauss_Sigma = list(matrix(c(1,0.7,0.7,1),2,2), 
+                      matrix(c(1, 0, 0, 1),2,2),
+                      matrix(c(1, -0.7, -0.7, 1), 2, 2))
+nEach = list(200, 200, 200)
+df = sampleGaussCluster(ovl3Gauss_Mu, ovl3Gauss_Sigma, nEach = nEach)
+plot(df$V1, df$V2)
+datasets[["ovl3Gauss"]] = df
 
-glassDf = read_csv("~/GapExperiment/Data/glass.csv")
-names(glassDf)[ncol(glassDf)]  = "class"
-glassDf$class = factor(glassDf$class)
+#4 hierchical cluster
+hier4Gauss_Mu = list(c(0, 0), c(3, 4), c(4, 3), c(3, 3))
+hier4Gauss_Sigma = list(matrix(c(1,0,0,1),2,2), 
+                        matrix(c(0.05, 0, 0, 0.05),2,2),
+                        matrix(c(0.05, 0, 0, 0.05), 2, 2),
+                        matrix(c(0.05, 0, 0, 0.05), 2, 2))
+nEach = list(200, 100, 100, 100)
+df = sampleGaussCluster(hier4Gauss_Mu, hier4Gauss_Sigma, nEach = nEach)
+plot(df$V1, df$V2)
+datasets[["hier4Gauss"]] = df
 
-irisDf <- read_csv("~/GapExperiment/Data/Iris.csv",
-                   col_types = cols(
-                      sepal.length = col_double(),
-                      sepal.width = col_double(),
-                      petal.length = col_double(),
-                      petal.width = col_double(),
-                      class = col_character()
-                    ))
-names(irisDf)[ncol(irisDf)]  = "class"
-irisDf$class = factor(irisDf$class)
-
-liverDf = read_csv("~/GapExperiment/Data/liver-disorders.csv")
-names(liverDf)[ncol(liverDf)]  = "class"
-liverDf$class = factor(liverDf$class)
-
-mouseDf = read_csv("~/GapExperiment/Data/mouse.csv")
-names(mouseDf)[ncol(mouseDf)]  = "class"
-mouseDf$class = factor(mouseDf$class)
 ```
 
-Test running gap
+Function to run Gap
 ```{r}
 library(dplyr)
 library(cluster)
 source("clusGap.R")
-names(datasets)
-df = datasets[['Iris']]
 
-gap = clusGap(df %>% select(-class), 
-                  FUN = kmeans, 
-                  nstart = 20, 
+runGap <- function(df, 
+                   df_name, 
+                   FUNcluster = kmeans, 
+                   pca = TRUE, 
+                   do_parallel = TRUE){
+  gap = clusGap(df %>% select(-class), 
+                  FUN = FUNcluster, 
+                  #nstart = 20, 
                   K.max = 10,
                   #d.power = 2,
                   #spaceH0 = c("scaledPCA"),
-                  B = 100)
-plot(gap, main = "clusGap(., FUN = kmeans, n.start=20, B= 100)")
-maxSE(gap$Tab[, 3], gap$Tab[, 4], method="Tibs2001SEmax")
-maxSE(gap$Tab[, 3], gap$Tab[, 4], method="firstSEmax")
-maxSE(gap$Tab[, 3], gap$Tab[, 4], method="globalSEmax")
+                  pca = pca,
+                  do_parallel = do_parallel,
+                  B = 50,
+                  verbose = TRUE)
+  tibs2001SEmax = maxSE(gap$Tab[, 3], gap$Tab[, 4], method="Tibs2001SEmax")
+  firstSEmax =  maxSE(gap$Tab[, 3], gap$Tab[, 4], method="firstSEmax")
+  accMax = maxSE(gap$Tab[, 3], gap$Tab[, 4], method="accMax")
+  plot(gap, main = paste0(df_name, ": ", nlevels(df$class), " classes;", 
+                          " tibs2001SEmax: ", tibs2001SEmax,
+                          " firstSEmax: ", firstSEmax,
+                          " accMax: ", accMax))
+  print(paste("Tibs2001SEmax:", tibs2001SEmax))
+  print(paste("firstSEmax:", firstSEmax))
+  print(paste("accMax:", accMax))
+  print(levels(df$class))
+  return(gap)
+}
+```
+```{r}
+names(datasets)
+```
 
-levels(df$class)
+```{r}
+#GOOD DATA:
+# cancer: maxAcc fix
+# glass: maxAcc + recursive?
+# iris: 
+# seeds: all correct
+# vertebral_column: bootstrap fix!!
+# wine: need maxAcc, no good
+# balance_scale: always 1, SE too big
+# blood: always 1, no good
+# density: always good
+# liver-disorders: bootstrap fix!! with maxAcc!
+# mouse: missed, 4 -> predicted 3. Need recursive?
+# pen: 10 classes, too big, linear increase
+# skin: 2 classes, no hope
+# lettr: no hope
+
+df_name = 'ovl3Gauss'
+df = datasets[[df_name]]
+nums <- sapply(df, is.numeric)
+#pam(df %>% select(-class), 3)
+runGap(df, df_name, FUNcluster = pam, pca = TRUE, do_parallel = TRUE)
+
+#Bootstrap
+df_sample = sample_n(df, size = min(nrow(df), 500), replace = TRUE)
+runGap(df_sample, df_name, FUNcluster = pam, pca = TRUE, do_parallel = TRUE)
 ```

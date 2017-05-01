@@ -12,8 +12,13 @@
 ##    - it uses  boot() nicely  [2012-01: ORPHANED because  Justin Harrington is amiss]
 ## MM: renamed arguments, and changed almost everything
 
-clusGap <- function (x, FUNcluster, K.max, B = 100, verbose = interactive(),
-    do_parallel = FALSE, ...)
+clusGap <- function (x, 
+                     FUNcluster, 
+                     K.max, 
+                     B = 100, 
+                     verbose = interactive(),
+                     pca = TRUE,
+                     do_parallel = FALSE, ...)
 {
     stopifnot(is.function(FUNcluster), length(dim(x)) == 2, K.max >= 2,
               (n <- nrow(x)) >= 1, (p <- ncol(x)) >= 1)
@@ -31,12 +36,13 @@ clusGap <- function (x, FUNcluster, K.max, B = 100, verbose = interactive(),
         x <- as.matrix(x)
     ii <- seq_len(n)
     W.k <- function(X, kk) {
-        clus <- if(kk > 1) FUNcluster(X, kk, ...)$cluster else rep.int(1L, nrow(X))
-        ##                 ---------- =  =       -------- kmeans() has 'cluster'; pam() 'clustering'
-	0.5* sum(vapply(split(ii, clus),
-			function(I) { xs <- X[I,, drop=FALSE]
-				      sum(dist(xs)/nrow(xs)) }, 0.))
-    }
+        clus <- if(kk > 1) FUNcluster(X, kk, ...)$cluster 
+                else rep.int(1L, nrow(X))
+        ##---------- =  =-------- kmeans() has 'cluster'; pam() 'clustering'
+	      0.5* sum(vapply(split(ii, clus),
+			        function(I) { xs <- X[I,, drop=FALSE]
+				        sum(dist(xs)/nrow(xs)) }, 0.))
+	      }
 
     E.logW <- SE.sim <- numeric(K.max)
 
@@ -49,9 +55,14 @@ clusGap <- function (x, FUNcluster, K.max, B = 100, verbose = interactive(),
     ## Scale 'x' into "hypercube" -- we later fill with H0-generated data
     xs <- scale(x, center=TRUE, scale=FALSE)
     m.x <- rep(attr(xs,"scaled:center"), each = n)# for back transforming
-    V.sx <- svd(xs)$v
-    rng.x1 <- apply(xs %*% V.sx, # = transformed(x)
-                    2, range)
+    if (pca){
+      V.sx <- svd(xs)$v
+      rng.x1 <- apply(xs %*% V.sx, # = transformed(x)
+                      2, range)
+    } else {
+      rng.x1 <- apply(xs, # = transformed(x)
+                      2, range)
+    }
 
     if(verbose) cat("Bootstrapping, b = 1,2,..., B (= ", B,
                     ")  [one \".\" per sample]:\n", sep="")
@@ -63,7 +74,12 @@ clusGap <- function (x, FUNcluster, K.max, B = 100, verbose = interactive(),
             z1 <- apply(rng.x1, 2,
                 function(M, nn) runif(nn, min=M[1], max=M[2]),
                 nn=n)
-            z <- tcrossprod(z1, V.sx) + m.x # back transformed
+            if (pca){
+              z <- tcrossprod(z1, V.sx) + m.x # back transformed
+            } else {
+              z <- z1 + m.x # back transformed
+            }
+            
             curLogWks <- unlist(lapply(1:K.max, function(k) log(W.k(z, k))))
             if(verbose && !do_parallel) cat(".", if(b %% 50 == 0) paste(b,"\n"))
 
@@ -75,6 +91,7 @@ clusGap <- function (x, FUNcluster, K.max, B = 100, verbose = interactive(),
         nrow = B)
 
     if(verbose && (B %% 50 != 0)) cat("",B,"\n")
+    print(logWks)
     E.logW <- colMeans(logWks)
     SE.sim <- sqrt((1 + 1/B) * apply(logWks, 2, var))
     structure(class = "clusGap",
@@ -102,7 +119,7 @@ clusGap <- function (x, FUNcluster, K.max, B = 100, verbose = interactive(),
 
 maxSE <- function(f, SE.f,
 		  method = c("firstSEmax", "Tibs2001SEmax",
-		  "globalSEmax", "firstmax", "globalmax"),
+		  "globalSEmax", "firstmax", "globalmax", "accMax"),
 		  SE.factor = 1)
 {
     method <- match.arg(method)
@@ -136,7 +153,10 @@ maxSE <- function(f, SE.f,
 	       if(any(mp <- f[seq_len(nc - 1)] >= f[nc] - fSE[nc]))
 		   which(mp)[1]
 	       else nc
-	   })
+	   },
+	   "accMax" = {
+	     1+which.min(diff(diff(f)))
+	   }) #TODO: Max Acc here
 }
 
 print.clusGap <- function(x, method="firstSEmax", SE.factor = 1, ...)
