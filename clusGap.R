@@ -194,7 +194,7 @@ maxSE <- function(f, SE.f,
 	   },
 	   "firstAccMaxSE" = {
 	     accSE = diff(diff(f)) + head(fSE, -2) + tail(fSE, -2) + head(tail(fSE, -1), -1)
-	     vSE = diff(f) #+ head(fSE, -1) + tail(fSE, 1)
+	     vSE = diff(f) + head(fSE, -1) #+ tail(fSE, 1)#TODO: this is experiment on S1 dataset, remove head(fSE, -1) if not working on other cases
 	     print("accSE: ")
 	     print(accSE)
 	     idx = 0

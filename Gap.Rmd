@@ -99,11 +99,12 @@ runGap <- function(df,
                    method = "maxAcc",
                    do_parallel = TRUE,
                    SE.factor = 1,
+                   K.max = 10,
                    ...){
   gap = clusGap(df %>% select(-class), 
                   FUN = FUNcluster, 
                   #nstart = 20, 
-                  K.max = 10,
+                  K.max = K.max,
                   #d.power = 2,
                   #spaceH0 = c("scaledPCA"),
                   pca = pca,
@@ -206,19 +207,21 @@ result = vapply(split(df, clus),
 # ovl3Gauss: accMax: no boot, good example of overlapping SE.factor.start = 0.5, SE.factor.incr = 1 #Seed 12345
 # strOvl2Gauss: accMax: no boot, SE.factor.start = 0.5, SE.factor.incr = 1 
 # ovl2Gauss: no boot, firstSE and tibs2001SE wrong, firstAccMaxSE fix #Seed 12347
-df_name = 'glass'
+# aggregation: no boot, not good enough, 9 for 7 penalize with SE.factor.incr = 1.2
+df_name = 's1'
 df = datasets[[df_name]]
 #df = sample_n(df, size = min(nrow(df), 800), replace = TRUE)
 runGapRecursive(df, df_name=df_name, 
                 FUNcluster = pam, 
                 SE.factor.start = 0.5,
-                SE.factor.incr = 1, #experiment
+                SE.factor.incr = 1, 
                 do_parallel=TRUE, 
+                K.max = 18,
                 #nstart=30, 
                 B = 50,
-                isBoot = FALSE,
+                isBoot = TRUE,
                 pca = FALSE,
                 repBoot = 20,
-                nBoot = 500
+                nBoot = 1000
                 )
 ```
