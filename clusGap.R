@@ -18,12 +18,20 @@ clusGap <- function (x,
                      B = 100, 
                      verbose = interactive(),
                      pca = TRUE,
+                     isBoot = TRUE,
+                     repBoot = 10,
+                     nBoot = 500,
                      do_parallel = FALSE, ...)
 {
     stopifnot(is.function(FUNcluster), length(dim(x)) == 2, K.max >= 2,
               (n <- nrow(x)) >= 1, (p <- ncol(x)) >= 1)
     if(B != (B. <- as.integer(B)) || (B <- B.) <= 0)
         stop("'B' has to be a positive integer")
+    if (isBoot){
+      n = min(nrow(x), nBoot)
+    } else {
+      n = nrow(x)
+    }
 
     apply_fun <- lapply
 
@@ -32,26 +40,44 @@ clusGap <- function (x,
         apply_fun <- parallel::mclapply
     }
 
-    if(is.data.frame(x))
-        x <- as.matrix(x)
-    ii <- seq_len(n)
     W.k <- function(X, kk) {
-        clus <- if(kk > 1) FUNcluster(X, kk, ...)$cluster 
+        clus <- if ((kk > 1) && (nrow(X) > 5*kk)) FUNcluster(X, kk, ...)$cluster 
                 else rep.int(1L, nrow(X))
         ##---------- =  =-------- kmeans() has 'cluster'; pam() 'clustering'
+        ii <- seq_len(nrow(X))
 	      0.5* sum(vapply(split(ii, clus),
 			        function(I) { xs <- X[I,, drop=FALSE]
 				        sum(dist(xs)/nrow(xs)) }, 0.))
 	      }
 
-    E.logW <- SE.sim <- numeric(K.max)
+    E.logW <- SE.sim <- logW <- logW.SE <- numeric(K.max)
 
     if(verbose) cat("Clustering k = 1,2,..., K.max (= ",K.max,"): .. ", sep='')
-
-    logW <- unlist(apply_fun(1:K.max, function(k) log(W.k(x, k))))
-
+    if (!isBoot){
+      if(is.data.frame(x))
+        x <- as.matrix(x)
+      logW <- unlist(apply_fun(1:K.max, function(k) log(W.k(x, k))))
+    } else {
+      cat("Bootstrapping")
+      logWksList <- apply_fun(1:repBoot,
+                              function(b)
+                              {
+                                df = sample_n(x, size = min(nrow(x), nBoot), replace = TRUE)
+                                df_m = as.matrix(df)
+                                curLogWks <- unlist(lapply(1:K.max, function(k) log(W.k(df_m, k))))
+                                if(verbose && !do_parallel) cat(".", if(b %% 10 == 0) paste(b,"\n"))
+                                curLogWks
+                              })
+      logWks <- matrix(unlist(logWksList),
+                       byrow = TRUE,
+                       nrow = repBoot)
+      logW <- colMeans(logWks)
+      logW.SE <- sqrt((1 + 1/repBoot) * apply(logWks, 2, var))
+    }
+    
     if(verbose) cat("done\n")
-
+    if(is.data.frame(x))
+      x <- as.matrix(x)
     ## Scale 'x' into "hypercube" -- we later fill with H0-generated data
     xs <- scale(x, center=TRUE, scale=FALSE)
     m.x <- rep(attr(xs,"scaled:center"), each = n)# for back transforming
@@ -66,7 +92,7 @@ clusGap <- function (x,
 
     if(verbose) cat("Bootstrapping, b = 1,2,..., B (= ", B,
                     ")  [one \".\" per sample]:\n", sep="")
-
+    nstart = 1;#WARN: disable using multiple start to fasten the process
     logWksList <- apply_fun(1:B,
         function(b)
         {
@@ -93,7 +119,7 @@ clusGap <- function (x,
     if(verbose && (B %% 50 != 0)) cat("",B,"\n")
     print(logWks)
     E.logW <- colMeans(logWks)
-    SE.sim <- sqrt((1 + 1/B) * apply(logWks, 2, var))
+    SE.sim <- logW.SE + sqrt((1 + 1/B) * apply(logWks, 2, var))
     structure(class = "clusGap",
               list(Tab = cbind(logW, E.logW, gap = E.logW - logW, SE.sim),
                    ## K.max == nrow(T)
@@ -119,7 +145,7 @@ clusGap <- function (x,
 
 maxSE <- function(f, SE.f,
 		  method = c("firstSEmax", "Tibs2001SEmax",
-		  "globalSEmax", "firstmax", "globalmax", "accMax", "accMaxSE"),
+		  "globalSEmax", "firstmax", "globalmax", "accMax", "accMaxSE", "firstAccMaxSE"),
 		  SE.factor = 1)
 {
     method <- match.arg(method)
@@ -135,14 +161,15 @@ maxSE <- function(f, SE.f,
 	   },
 	   "Tibs2001SEmax" = { ## The one Tibshirani et al (2001) proposed:
 	       ## "the smallest k such that f(k) >= f(k+1) - s_{k+1}"
-	       g.s <- f - fSE
+	       g.s <- f - 1*SE.f ## Always set factor to 1 in Tibs2001
 	       if(any(mp <- f[-K] >= g.s[-1])) which.max(mp) else K
 	   },
 	   "firstSEmax" = { ## M.Maechler(2012): rather ..
 	       ## look at the first *local* maximum and then to the left ..:
+	       #Always set factor to 1 in firstSEmax
 	       decr <- (dg <- diff(f)) <= 0 # length K-1
 	       nc <- if(any(decr)) which.max(decr) else K # the first TRUE, or K
-	       if(any(mp <- f[seq_len(nc - 1)] >= f[nc] - fSE[nc]))
+	       if(any(mp <- f[seq_len(nc - 1)] >= f[nc] - SE.f[nc]))
 		   which(mp)[1]
 	       else nc
 	   },
@@ -158,13 +185,33 @@ maxSE <- function(f, SE.f,
 	     1+which.min(diff(diff(f)))
 	   },
 	   "accMaxSE" = {
-	     accSE = diff(diff(f)) + 0.5*head(fSE, -2) + 0.5*tail(fSE, -2) + 1*head(tail(fSE, -1), -1)
+	     accSE = diff(diff(f)) + head(fSE, -2) + tail(fSE, -2) + head(tail(fSE, -1), -1)
 	     if (min(accSE)>=0){
 	       1
 	     } else {
 	       1+which.min(accSE)
 	     }
-	   })
+	   },
+	   "firstAccMaxSE" = {
+	     accSE = diff(diff(f)) + head(fSE, -2) + tail(fSE, -2) + head(tail(fSE, -1), -1)
+	     vSE = diff(f) #+ head(fSE, -1) + tail(fSE, 1)
+	     print("accSE: ")
+	     print(accSE)
+	     idx = 0
+	     minAccSE = 0
+	     for (i in seq(length(accSE))){
+  	       if (vSE[i]<0){
+  	         break
+  	       } else {
+  	         if (accSE[i] < minAccSE){
+  	           minAccSE = accSE[i]
+  	           idx = i
+  	         }
+  	       }
+  	     }
+	     idx + 1
+	     }
+	   )
 }
 
 print.clusGap <- function(x, method="firstSEmax", SE.factor = 1, ...)

@@ -43,18 +43,10 @@ sampleGaussCluster <- function (muList, sigmaList, nEach){
 }
 
 #2 overlapping Gaussian
-ovl2Gauss_Mu = list(c(0, 0), c(2.5, 2.5))
+set.seed(12347)
+ovl2Gauss_Mu = list(c(0, 0), c(4, 0))
 ovl2Gauss_Sigma = list(matrix(c(1,0.7,0.7,1),2,2), 
-                      matrix(c(1, 0, 0, 1),2,2))
-nEach = list(200, 200)
-df = sampleGaussCluster(ovl2Gauss_Mu, ovl2Gauss_Sigma, nEach = nEach)
-plot(df$V1, df$V2)
-datasets[["ovl2Gauss"]] = df
-
-#2 overlapping Gaussian
-ovl2Gauss_Mu = list(c(0, 0), c(2.5, 2.5))
-ovl2Gauss_Sigma = list(matrix(c(1,0.7,0.7,1),2,2), 
-                      matrix(c(1, 0, 0, 1),2,2))
+                      matrix(c(1, -0.7, -0.7, 1),2,2))
 nEach = list(200, 200)
 df = sampleGaussCluster(ovl2Gauss_Mu, ovl2Gauss_Sigma, nEach = nEach)
 plot(df$V1, df$V2)
@@ -63,16 +55,17 @@ datasets[["ovl2Gauss"]] = df
 #2 strong overlapping Gaussian
 strOvl2Gauss_Mu = list(c(0, 0), c(2, 2))
 strOvl2Gauss_Sigma = list(matrix(c(1,0.7,0.7,1),2,2), 
-                      matrix(c(0.8, 0, 0, 0.8),2,2))
+                      matrix(c(0.3, 0, 0, 0.5),2,2))
 nEach = list(200, 200)
 df = sampleGaussCluster(strOvl2Gauss_Mu, strOvl2Gauss_Sigma, nEach = nEach)
 plot(df$V1, df$V2)
 datasets[["strOvl2Gauss"]] = df
 
 #3 overlapping Gaussian
-ovl3Gauss_Mu = list(c(0, 0), c(2.5, 2.5), c(0, 2))
+set.seed(12345)
+ovl3Gauss_Mu = list(c(0, 0), c(0, 8), c(0, 4))
 ovl3Gauss_Sigma = list(matrix(c(1,0.7,0.7,1),2,2), 
-                      matrix(c(1, 0, 0, 1),2,2),
+                      matrix(c(1, 0.7, 0.7, 1),2,2),
                       matrix(c(1, -0.7, -0.7, 1), 2, 2))
 nEach = list(200, 200, 200)
 df = sampleGaussCluster(ovl3Gauss_Mu, ovl3Gauss_Sigma, nEach = nEach)
@@ -95,7 +88,7 @@ datasets[["hier4Gauss"]] = df
 Function to run Gap
 ```{r}
 library(dplyr)
-#library(cluster)
+library(cluster)
 source("clusGap.R")
 
 runGap <- function(df, 
@@ -104,7 +97,9 @@ runGap <- function(df,
                    FUNcluster = kmeans, 
                    pca = TRUE, 
                    method = "maxAcc",
-                   do_parallel = TRUE){
+                   do_parallel = TRUE,
+                   SE.factor = 1,
+                   ...){
   gap = clusGap(df %>% select(-class), 
                   FUN = FUNcluster, 
                   #nstart = 20, 
@@ -114,21 +109,46 @@ runGap <- function(df,
                   pca = pca,
                   do_parallel = do_parallel,
                   B = B,
-                  verbose = TRUE)
+                  verbose = TRUE,
+                  ...)
   tibs2001SEmax = maxSE(gap$Tab[, 3], gap$Tab[, 4], method="Tibs2001SEmax")
   firstSEmax =  maxSE(gap$Tab[, 3], gap$Tab[, 4], method="firstSEmax")
   accMax = maxSE(gap$Tab[, 3], gap$Tab[, 4], method="accMax")
-  accMaxSE = maxSE(gap$Tab[, 3], gap$Tab[, 4], method="accMaxSE")
+  accMaxSE = maxSE(gap$Tab[, 3], gap$Tab[, 4], SE.factor = SE.factor, method="accMaxSE")
+  firstAccMaxSE = maxSE(gap$Tab[, 3], gap$Tab[, 4], 
+                        SE.factor = SE.factor, method="firstAccMaxSE")
   plot(gap, main = paste0(df_name, ": ", nlevels(df$class), ";", 
                           " tibs2001SE: ", tibs2001SEmax,
-                          " firstSE: ", firstSEmax,
-                          " accMax: ", accMax,
-                          " accMaxSE: ", accMaxSE))
+                          " firstSE: ", firstSEmax))
+  mtext(paste0("accMax: ", accMax,
+               " accMaxSE: ", accMaxSE,
+               " firstAccMaxSE", firstAccMaxSE))
   print(paste("tibs2001SEmax:", tibs2001SEmax))
   print(paste("firstSEmax:", firstSEmax))
   print(paste("accMax:", accMax))
-  print(levels(df$class))
-  return(list("gap"=gap, "kCluster"=accMaxSE))
+  print(paste("accMaxSE:", accMaxSE))
+  print(paste("firstAccMaxSE:", firstAccMaxSE))
+  #print(levels(df$class))
+  return(list("gap"=gap, "kCluster"=firstAccMaxSE))
+}
+
+runGapRecursive <- function(df, SE.factor.start = 1, SE.factor.incr = 1,...){
+  print("--------")
+  kCluster = runGap(df, SE.factor = SE.factor.start, ...)$kCluster
+  if (kCluster > 1){
+    X = df%>%select(-class)
+    #Always use pam
+    clus = pam(X, kCluster)$cluster
+    result = vapply(split(df, clus),
+	      function(X) { #xs <- X[I,, drop=FALSE]
+		              runGapRecursive(X, SE.factor.start*SE.factor.incr,SE.factor.incr, ...)}, 0.)
+    print(result)
+    return(sum(result))
+
+  } else {
+    return (kCluster)
+    
+  }
 }
 ```
 ```{r}
@@ -136,28 +156,12 @@ names(datasets)
 ```
 
 ```{r}
-#GOOD DATA:
-# cancer: maxAcc fix
-# glass: maxAcc + recursive (almost; 5 instead of 6)
-# iris: maxAccSE + recursive fix. Very good
-# seeds: all correct
-# vertebral_column: bootstrap fix!!
-# wine: need maxAcc, maxAcc can't fix
-# balance_scale: always 1, SE too big
-# blood: always 1, maxAcc can't fix
-# density: always good
-# liver-disorders: bootstrap fix!! with maxAcc!
-# mouse: missed, 4 -> predicted 3. Need recursive?
-# pen: 10 classes, too big, linear increase
-# skin: 2 classes, no hope
-# lettr: no hope
-# breast: maxAcc very good
 
 df_name = 'mouse'
 df = datasets[[df_name]]
 #nums <- sapply(df, is.numeric)
 #pam(df %>% select(-class), 3)
-runGap(df, df_name, FUNcluster = pam, pca = TRUE, method="accMaxSE", do_parallel = TRUE)
+runGap(df, df_name, FUNcluster = kmeans, nstart = 30, pca = TRUE, method="accMaxSE", do_parallel = TRUE)
 
 #Bootstrap
 #df_sample = sample_n(df, size = min(nrow(df), 500), replace = TRUE)
@@ -178,30 +182,43 @@ result = vapply(split(df, clus),
 
 ```
 
-Recursive clusGap
-```{r}
-runGapRecursive <- function(df, ...){
-  print("--------")
-  kCluster = runGap(df, ...)$kCluster
-  if (kCluster > 1){
-    X = df%>%select(-class)
-    clus = pam(X, kCluster)$cluster
-    result = vapply(split(df, clus),
-	      function(X) { #xs <- X[I,, drop=FALSE]
-		                   runGapRecursive(X, ...)}, 0.)
-    print(result)
-    return(sum(result))
-
-  } else {
-    return (kCluster)
-    
-  }
-}
-```
 
 ```{r}
-df_name = 'thyroid'
+#GOOD DATA:
+# Don't use bootstrap with small dataset!
+# cancer: maxAcc fix; recursive without boot error; Recursive with boot help discover hidden structure
+# glass: maxAcc + recursive (almost; 5 instead of 6)
+# iris: maxAccSE + recursive fix. no boot, SE.factor.start = 0.5, SE.factor.incr = 1. Beautiful result!!!
+#       Don't run Bootstrap: Nope! 
+# seeds: all correct. no boot, SE.factor.start = 0.5, SE.factor.incr = 1
+# vertebral_column: bootstrap fix!!
+# wine: need maxAcc, maxAcc can't fix
+# balance_scale: always 1, SE too big
+# blood: always 1, maxAcc can't fix
+# density: always good, no boot, SE.factor.start = 0.5, SE.factor.incr = 1
+# liver-disorders: always 1
+# mouse: missed, 4 -> predicted 3. Need recursive? (can't fix)
+# pen: 10 classes, too big, linear increase
+# skin: 2 classes, no hope
+# lettr: no hope
+# syn_unbalance3_5: good example for the usefulness of recursive and bootstrapping together, Tibs2001 and firstSE all make obvious mistakes! 
+# hier4Gauss: recursive: no boot, SE.factor.start = 0.5, SE.factor.incr = 1
+# ovl3Gauss: accMax: no boot, good example of overlapping SE.factor.start = 0.5, SE.factor.incr = 1 #Seed 12345
+# strOvl2Gauss: accMax: no boot, SE.factor.start = 0.5, SE.factor.incr = 1 
+# ovl2Gauss: no boot, firstSE and tibs2001SE wrong, firstAccMaxSE fix #Seed 12347
+df_name = 'glass'
 df = datasets[[df_name]]
-df = sample_n(df, size = min(nrow(df), 500), replace = TRUE)
-runGapRecursive(df, df_name=df_name, FUNcluster = pam, do_parallel=FALSE, B = 50)
+#df = sample_n(df, size = min(nrow(df), 800), replace = TRUE)
+runGapRecursive(df, df_name=df_name, 
+                FUNcluster = pam, 
+                SE.factor.start = 0.5,
+                SE.factor.incr = 1, #experiment
+                do_parallel=TRUE, 
+                #nstart=30, 
+                B = 50,
+                isBoot = FALSE,
+                pca = FALSE,
+                repBoot = 20,
+                nBoot = 500
+                )
 ```
