@@ -49,17 +49,26 @@ ovl2Gauss_Sigma = list(matrix(c(1,0.7,0.7,1),2,2),
                       matrix(c(1, -0.7, -0.7, 1),2,2))
 nEach = list(200, 200)
 df = sampleGaussCluster(ovl2Gauss_Mu, ovl2Gauss_Sigma, nEach = nEach)
-plot(df$V1, df$V2)
+plot(df$V1, df$V2, xlab="x1", ylab="x2", pch=20, cex = 1, main = "ovl2Gauss")
 datasets[["ovl2Gauss"]] = df
 
 #2 strong overlapping Gaussian
-strOvl2Gauss_Mu = list(c(0, 0), c(2, 2))
+strOvl2Gauss_Mu = list(c(0, 0), c(2, 0))
 strOvl2Gauss_Sigma = list(matrix(c(1,0.7,0.7,1),2,2), 
-                      matrix(c(0.3, 0, 0, 0.5),2,2))
+                      matrix(c(1, -0.7, -0.7, 1),2,2))
 nEach = list(200, 200)
 df = sampleGaussCluster(strOvl2Gauss_Mu, strOvl2Gauss_Sigma, nEach = nEach)
-plot(df$V1, df$V2)
+plot(df$V1, df$V2, xlab="x1", ylab="x2", pch=20, cex = 1, main = "strOvl2Gauss")
 datasets[["strOvl2Gauss"]] = df
+
+#2 Seperated Gaussian
+sep2Gauss_Mu = list(c(0, 0), c(5, 5))
+sep2Gauss_Sigma = list(matrix(c(1,0,0,1),2,2), 
+                      matrix(c(1, 0, 0, 1),2,2))
+nEach = list(100, 100)
+df = sampleGaussCluster(sep2Gauss_Mu, sep2Gauss_Sigma, nEach = nEach)
+plot(df$V1, df$V2, xlab="x1", ylab="x2", pch=20, cex = 1, main = "sep2Gauss")
+datasets[["sep2Gauss"]] = df
 
 #3 overlapping Gaussian
 set.seed(12345)
@@ -69,7 +78,7 @@ ovl3Gauss_Sigma = list(matrix(c(1,0.7,0.7,1),2,2),
                       matrix(c(1, -0.7, -0.7, 1), 2, 2))
 nEach = list(200, 200, 200)
 df = sampleGaussCluster(ovl3Gauss_Mu, ovl3Gauss_Sigma, nEach = nEach)
-plot(df$V1, df$V2)
+plot(df$V1, df$V2, xlab="x1", ylab="x2", pch=20, cex = 1, main = "ovl3Gauss")
 datasets[["ovl3Gauss"]] = df
 
 #4 hierchical cluster
@@ -80,7 +89,7 @@ hier4Gauss_Sigma = list(matrix(c(1,0,0,1),2,2),
                         matrix(c(0.05, 0, 0, 0.05), 2, 2))
 nEach = list(200, 100, 100, 100)
 df = sampleGaussCluster(hier4Gauss_Mu, hier4Gauss_Sigma, nEach = nEach)
-plot(df$V1, df$V2)
+plot(df$V1, df$V2, xlab="x1", ylab="x2", pch=20, cex = 1, main = "hier4Gauss")
 datasets[["hier4Gauss"]] = df
 
 ```
@@ -118,17 +127,20 @@ runGap <- function(df,
   accMaxSE = maxSE(gap$Tab[, 3], gap$Tab[, 4], SE.factor = SE.factor, method="accMaxSE")
   firstAccMaxSE = maxSE(gap$Tab[, 3], gap$Tab[, 4], 
                         SE.factor = SE.factor, method="firstAccMaxSE")
-  plot(gap, main = paste0(df_name, ": ", nlevels(df$class), ";", 
-                          " tibs2001SE: ", tibs2001SEmax,
-                          " firstSE: ", firstSEmax))
-  mtext(paste0("accMax: ", accMax,
-               " accMaxSE: ", accMaxSE,
-               " firstAccMaxSE", firstAccMaxSE))
+  plot(gap)
+  title(paste0(df_name#, ": ", nlevels(df$class), " classes;"#, 
+                          #" tibs2001SE: ", tibs2001SEmax,
+                          #" firstSE: ", firstSEmax
+                          ), line = 1)
+  #mtext(paste0(#"accMax: ", accMax,
+  #             #" accMaxSE: ", accMaxSE,
+  #             " tibs2001SE: ", tibs2001SEmax,
+  #             " 1stDaccSEmax: ", firstAccMaxSE))
   print(paste("tibs2001SEmax:", tibs2001SEmax))
   print(paste("firstSEmax:", firstSEmax))
   print(paste("accMax:", accMax))
   print(paste("accMaxSE:", accMaxSE))
-  print(paste("firstAccMaxSE:", firstAccMaxSE))
+  print(paste("1stDaccSEmax:", firstAccMaxSE))
   #print(levels(df$class))
   return(list("gap"=gap, "kCluster"=firstAccMaxSE))
 }
@@ -151,6 +163,18 @@ runGapRecursive <- function(df, SE.factor.start = 1, SE.factor.incr = 1,...){
     
   }
 }
+```
+```{r}
+df = datasets[['sep2Gauss']]
+result = runGap(df, 'sep2Gauss', pca = TRUE, method="1stDaccSEmax", do_parallel = TRUE)
+gap = result[["gap"]]
+```
+```{r}
+logW = gap$Tab[,1]
+E.logW = gap$Tab[,2]
+plot(exp(logW), type = 'b', xlab='number of cluster k', ylab='Within-cluster sum of squared')
+plot(logW, type = 'b', xlab='number of cluster k', pch='D', ylab='logWk on Dataset and on Null distribution')
+lines(E.logW, type = 'b', pch='E')
 ```
 ```{r}
 names(datasets)
@@ -208,7 +232,7 @@ result = vapply(split(df, clus),
 # strOvl2Gauss: accMax: no boot, SE.factor.start = 0.5, SE.factor.incr = 1 
 # ovl2Gauss: no boot, firstSE and tibs2001SE wrong, firstAccMaxSE fix #Seed 12347
 # aggregation: no boot, not good enough, 9 for 7 penalize with SE.factor.incr = 1.2
-df_name = 's1'
+df_name = 'cancer'
 df = datasets[[df_name]]
 #df = sample_n(df, size = min(nrow(df), 800), replace = TRUE)
 runGapRecursive(df, df_name=df_name, 
@@ -220,7 +244,7 @@ runGapRecursive(df, df_name=df_name,
                 #nstart=30, 
                 B = 50,
                 isBoot = TRUE,
-                pca = FALSE,
+                pca = TRUE,
                 repBoot = 20,
                 nBoot = 1000
                 )
