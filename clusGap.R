@@ -169,7 +169,7 @@ maxSE <- function(f, SE.f,
 	       #Always set factor to 1 in firstSEmax
 	       decr <- (dg <- diff(f)) <= 0 # length K-1
 	       nc <- if(any(decr)) which.max(decr) else K # the first TRUE, or K
-	       if(any(mp <- f[seq_len(nc - 1)] >= f[nc] - SE.f[nc]))
+	       if(any(mp <- f[seq_len(nc - 1)] >= f[nc] - fSE[nc]))
 		   which(mp)[1]
 	       else nc
 	   },

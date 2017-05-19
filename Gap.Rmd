@@ -92,6 +92,11 @@ df = sampleGaussCluster(hier4Gauss_Mu, hier4Gauss_Sigma, nEach = nEach)
 plot(df$V1, df$V2, xlab="x1", ylab="x2", pch=20, cex = 1, main = "hier4Gauss")
 datasets[["hier4Gauss"]] = df
 
+#Load khan dataset
+df = dendextend::khan$train
+df_name = 'khan2001'
+df$class = 1
+datasets[["khan"]] = df
 ```
 
 Function to run Gap
@@ -121,21 +126,23 @@ runGap <- function(df,
                   B = B,
                   verbose = TRUE,
                   ...)
-  tibs2001SEmax = maxSE(gap$Tab[, 3], gap$Tab[, 4], method="Tibs2001SEmax")
+  tibs2001SEmax = maxSE(gap$Tab[, 3], gap$Tab[, 4], SE.factor = 1, method="Tibs2001SEmax")
   firstSEmax =  maxSE(gap$Tab[, 3], gap$Tab[, 4], method="firstSEmax")
   accMax = maxSE(gap$Tab[, 3], gap$Tab[, 4], method="accMax")
   accMaxSE = maxSE(gap$Tab[, 3], gap$Tab[, 4], SE.factor = SE.factor, method="accMaxSE")
   firstAccMaxSE = maxSE(gap$Tab[, 3], gap$Tab[, 4], 
                         SE.factor = SE.factor, method="firstAccMaxSE")
   plot(gap)
+  
+  
   title(paste0(df_name#, ": ", nlevels(df$class), " classes;"#, 
                           #" tibs2001SE: ", tibs2001SEmax,
                           #" firstSE: ", firstSEmax
                           ), line = 1)
-  #mtext(paste0(#"accMax: ", accMax,
-  #             #" accMaxSE: ", accMaxSE,
-  #             " tibs2001SE: ", tibs2001SEmax,
-  #             " 1stDaccSEmax: ", firstAccMaxSE))
+  mtext(paste0(#"accMax: ", accMax,
+               #" accMaxSE: ", accMaxSE,
+               " tibs2001SE: ", tibs2001SEmax,
+               " 1stDaccSEmax: ", firstAccMaxSE))
   print(paste("tibs2001SEmax:", tibs2001SEmax))
   print(paste("firstSEmax:", firstSEmax))
   print(paste("accMax:", accMax))
@@ -178,6 +185,9 @@ lines(E.logW, type = 'b', pch='E')
 ```
 ```{r}
 names(datasets)
+df_name = 'syn_unbalance3_5'
+df = datasets[[df_name]]
+plot(df$T1, df$T2, xlab="x1", ylab="x2", pch=20, cex = 1, main = "syn_unbalance3_5")
 ```
 
 ```{r}
@@ -212,7 +222,7 @@ result = vapply(split(df, clus),
 #GOOD DATA:
 # Don't use bootstrap with small dataset!
 # cancer: maxAcc fix; recursive without boot error; Recursive with boot help discover hidden structure
-# glass: maxAcc + recursive (almost; 5 instead of 6)
+# glass: maxAcc + recursive (almost; 5 instead of 6) the tibs2001SE work well
 # iris: maxAccSE + recursive fix. no boot, SE.factor.start = 0.5, SE.factor.incr = 1. Beautiful result!!!
 #       Don't run Bootstrap: Nope! 
 # seeds: all correct. no boot, SE.factor.start = 0.5, SE.factor.incr = 1
@@ -232,20 +242,97 @@ result = vapply(split(df, clus),
 # strOvl2Gauss: accMax: no boot, SE.factor.start = 0.5, SE.factor.incr = 1 
 # ovl2Gauss: no boot, firstSE and tibs2001SE wrong, firstAccMaxSE fix #Seed 12347
 # aggregation: no boot, not good enough, 9 for 7 penalize with SE.factor.incr = 1.2
-df_name = 'cancer'
+df_name = 'glass'
 df = datasets[[df_name]]
+   #df = dendextend::khan$train
+   #df_name = 'khan2001'
+   #df$class = 1
 #df = sample_n(df, size = min(nrow(df), 800), replace = TRUE)
+isBoot = FALSE
+if (nrow(df)>500)
+  isBoot = TRUE
 runGapRecursive(df, df_name=df_name, 
                 FUNcluster = pam, 
                 SE.factor.start = 0.5,
                 SE.factor.incr = 1, 
                 do_parallel=TRUE, 
-                K.max = 18,
+                K.max = 15,
                 #nstart=30, 
                 B = 50,
-                isBoot = TRUE,
+                isBoot = isBoot,
                 pca = TRUE,
                 repBoot = 20,
-                nBoot = 1000
+                nBoot = 500
                 )
+```
+
+```{r}
+#Run silhouette
+df_names = c('ovl2Gauss', 'ovl3Gauss', 'hier4Gauss', 'iris', 'cancer', 'seeds', 'syn_unbalance3_5', 'khan');
+
+kMax = 10;
+for (df_name in df_names){
+  df = datasets[[df_name]]
+  df = df %>% select(-class)
+  sil = numeric(6)
+  for (k in 2:kMax){
+    sil[k] = summary(silhouette(pam(df, k=k)))$avg.width
+  }
+  plot(sil, type = 'b', xlab='number of cluster k', ylab='Average Silhouette', main = df_name)
+}
+```
+
+```{r}
+#plot Wk for elbow
+W.k <- function(X, kk) {
+        clus <- if (kk > 1) pam (X, kk)$cluster 
+                else rep.int(1L, nrow(X))
+        ##---------- =  =-------- kmeans() has 'cluster'; pam() 'clustering'
+        ii <- seq_len(nrow(X))
+	      0.5* sum(vapply(split(ii, clus),
+			        function(I) { xs <- X[I,, drop=FALSE]
+				        sum(dist(xs)/nrow(xs)) }, 0.))
+}
+
+df_names = c('ovl2Gauss', 'ovl3Gauss', 'hier4Gauss', 'iris', 'cancer', 'seeds', 'syn_unbalance3_5', 'khan');
+kMax = 10;
+for (df_name in df_names){
+  df = datasets[[df_name]]
+  df = df %>% select(-class)
+  W = numeric(6)
+  Wk = unlist(lapply(1:kMax, function(k) W.k(df, k)))
+  plot(Wk, type = 'b', xlab='number of cluster k', ylab='Within-cluster sum of squared', main = df_name)
+}
+```
+
+```{r}
+#Plot Hartigan
+#plot Wk for elbow
+W.k <- function(X, kk) {
+        clus <- if (kk > 1) pam (X, kk)$cluster 
+                else rep.int(1L, nrow(X))
+        ##---------- =  =-------- kmeans() has 'cluster'; pam() 'clustering'
+        ii <- seq_len(nrow(X))
+	      0.5*sum(vapply(split(ii, clus),
+			        function(I) { xs <- X[I,, drop=FALSE]
+				        sum(dist(xs)) }, 0.))
+}
+
+df_names = c('ovl2Gauss', 'ovl3Gauss', 'hier4Gauss', 'iris', 'cancer', 'seeds', 'syn_unbalance3_5', 'khan');
+kMax = 10;
+for (df_name in df_names){
+  df = datasets[[df_name]]
+  df = df %>% select(-class)
+  W = numeric(6)
+  Wk = unlist(lapply(1:kMax, function(k) W.k(df, k)))
+
+  Hartigan = numeric(kMax-1)
+  n = nrow(df)
+  for (k in 1:(kMax-1)){
+    Hartigan[k] = (Wk[k]/Wk[k+1] -1)/(n-k-1)*10000
+  }
+  plot(Hartigan, type = 'b', xlab='number of cluster k', ylab='Hartigan', main = df_name)
+
+}
+
 ```
