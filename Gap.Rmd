@@ -190,59 +190,10 @@ df = datasets[[df_name]]
 plot(df$T1, df$T2, xlab="x1", ylab="x2", pch=20, cex = 1, main = "syn_unbalance3_5")
 ```
 
-```{r}
-
-df_name = 'mouse'
-df = datasets[[df_name]]
-#nums <- sapply(df, is.numeric)
-#pam(df %>% select(-class), 3)
-runGap(df, df_name, FUNcluster = kmeans, nstart = 30, pca = TRUE, method="accMaxSE", do_parallel = TRUE)
-
-#Bootstrap
-#df_sample = sample_n(df, size = min(nrow(df), 500), replace = TRUE)
-#runGap(df_sample, df_name, FUNcluster = pam, pca = TRUE, method="accMaxSE", do_parallel = TRUE)
-```
-
-Test
-```{r}
-df_name = 'hier4Gauss'
-df = datasets[[df_name]]
-kCluster = 2
-X = df%>%select(-class)
-#X= as.matrix(X)
-clus = pam(X, kCluster)$cluster
-result = vapply(split(df, clus),
-			      function(X) { #xs <- X[I,, drop=FALSE]
-				                   runGap(X, df_name, FUNcluster = pam)$kCluster}, 0.)
-
-```
-
 
 ```{r}
 #GOOD DATA:
-# Don't use bootstrap with small dataset!
-# cancer: maxAcc fix; recursive without boot error; Recursive with boot help discover hidden structure
-# glass: maxAcc + recursive (almost; 5 instead of 6) the tibs2001SE work well
-# iris: maxAccSE + recursive fix. no boot, SE.factor.start = 0.5, SE.factor.incr = 1. Beautiful result!!!
-#       Don't run Bootstrap: Nope! 
-# seeds: all correct. no boot, SE.factor.start = 0.5, SE.factor.incr = 1
-# vertebral_column: bootstrap fix!!
-# wine: need maxAcc, maxAcc can't fix
-# balance_scale: always 1, SE too big
-# blood: always 1, maxAcc can't fix
-# density: always good, no boot, SE.factor.start = 0.5, SE.factor.incr = 1
-# liver-disorders: always 1
-# mouse: missed, 4 -> predicted 3. Need recursive? (can't fix)
-# pen: 10 classes, too big, linear increase
-# skin: 2 classes, no hope
-# lettr: no hope
-# syn_unbalance3_5: good example for the usefulness of recursive and bootstrapping together, Tibs2001 and firstSE all make obvious mistakes! 
-# hier4Gauss: recursive: no boot, SE.factor.start = 0.5, SE.factor.incr = 1
-# ovl3Gauss: accMax: no boot, good example of overlapping SE.factor.start = 0.5, SE.factor.incr = 1 #Seed 12345
-# strOvl2Gauss: accMax: no boot, SE.factor.start = 0.5, SE.factor.incr = 1 
-# ovl2Gauss: no boot, firstSE and tibs2001SE wrong, firstAccMaxSE fix #Seed 12347
-# aggregation: no boot, not good enough, 9 for 7 penalize with SE.factor.incr = 1.2
-df_name = 'glass'
+df_name = 'seeds'
 df = datasets[[df_name]]
    #df = dendextend::khan$train
    #df_name = 'khan2001'
